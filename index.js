@@ -142,7 +142,7 @@ conn.sendMessage(ownerNumber + "@s.whatsapp.net", {
     
     conn.ev.on('creds.update', saveCreds);
 
-}
+
 
 conn.ev.on('messages.upsert', async(mek) => {
 mek = mek.messages[0]
