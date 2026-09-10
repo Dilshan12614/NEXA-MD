@@ -11,26 +11,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        node-version: [20.x]  # Node 24 වලට සමහර package break වෙන නිසා 20 තිබ්බා
-
+        node-version: [20.x]
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
+    - uses: actions/checkout@v4
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-
-    - name: Install dependencies
-      run: npm install
-
-    - name: Build
-      run: npm run build --if-present  # build script තිබ්බොත් විතරක් run වෙනවා
-
-    - name: Test
-      run: npm test --if-present  # test script තිබ්බොත් විතරක් run වෙනවා
+    - run: npm install
+    - run: npm run build --if-present
