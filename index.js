@@ -138,7 +138,7 @@ conn.sendMessage(ownerNumber + "@s.whatsapp.net", {
 });
 
         
-    });
+
     
     conn.ev.on('creds.update', saveCreds);
 
