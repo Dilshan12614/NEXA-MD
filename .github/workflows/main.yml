@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x] # Node 18 දැම්මා. baileys Node 18 වල stable
+        node-version: [20.x] # ආයෙත් 20 ට ගියා. baileys ඒක ඕන
 
     steps:
     - uses: actions/checkout@v4
@@ -22,6 +22,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
 
     - name: Install dependencies
-      run: npm install --legacy-peer-deps
+      run: npm ci --ignore-scripts --legacy-peer-deps || npm install --ignore-scripts --legacy-peer-deps
       env:
-        NPM_CONFIG_IGNORE_SCRIPTS: true # මේක නිසා tsc run වෙන්නේ නෑ
+        NPM_CONFIG_IGNORE_SCRIPTS: true
+        ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
