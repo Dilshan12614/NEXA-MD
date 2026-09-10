@@ -4,30 +4,40 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
+    timeout-minutes: 360
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
 
-    - name: Install dependencies
-      run: npm install
+      - name: Check Node and npm
+        run: |
+          node -v
+          npm -v
 
-    - name: Start application
-      run: npm start
+      - name: Install dependencies
+        run: |
+          npm install --legacy-peer-deps --ignore-scripts
+
+      - name: Start NEXA-MD
+        env:
+          SESSION_ID: ${{ secrets.SESSION_ID }}
+        run: |
+          if [ -z "$SESSION_ID" ]; then
+            echo "❌ SESSION_ID is missing"
+            exit 1
+          fi
+
+          echo "✅ SESSION_ID is set"
+          npm start
