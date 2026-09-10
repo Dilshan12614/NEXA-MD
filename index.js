@@ -35,50 +35,85 @@ const express = require("express");
 const app = express();
 const port = process.env.PORT || 8000;
 
-
 async function connectToWA() {
 
+    const connectDB = require('./lib/mongodb');
+    await connectDB();
 
-/////////////////MONGODB.///////////////
-const connectDB = require(`./lib/mongodb`)
-connectDB();
+    const { readEnv } = require('./lib/database');
+    const config = await readEnv();
+    const prefix = config.PREFIX;
 
-//////////////////////////////////////////////////
-const{readEnv} = require(`./lib/database`)
-const config = await readEnv();
-const prefix = config.PREFIX
+    console.log("Connecting 🧬...");
 
-////////////////////////////////////////////////////////
-        
-console.log("Connecting 🧬...");
-const { state, saveCreds } = await useMultiFileAuthState(__dirname + '/auth_info_baileys/')
-var { version } = await fetchLatestBaileysVersion()
+    const { state, saveCreds } = await useMultiFileAuthState(
+        __dirname + '/auth_info_baileys/'
+    );
 
-const conn = makeWASocket({
+    const { version } = await fetchLatestBaileysVersion();
+
+    const conn = makeWASocket({
         logger: P({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: Browsers.macOS("Safari"),
-        syncFullHistory: true,
+        browser: Browsers.macOS('Safari'),
+        syncFullHistory: false,
         auth: state,
         version
-        })
+    });
 
-conn.ev.on('connection.update', (update) => {
-const { connection, lastDisconnect } = update
-if (connection === 'close') {
-if (lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut) {
-connectToWA()
-  }
-  } else if (connection === 'open') {
-console.log('💫 Installing... ')
-const path = require('path');
-fs.readdirSync("./plugins/").forEach((plugin) => {
-if (path.extname(plugin).toLowerCase() == ".js") {
-require("./plugins/" + plugin);
+    conn.ev.on('creds.update', saveCreds);
+
+    conn.ev.on('connection.update', (update) => {
+
+        const { connection, lastDisconnect } = update;
+
+        if (connection === 'open') {
+
+            console.log('💫 Installing...');
+
+            const path = require('path');
+
+            fs.readdirSync('./plugins/').forEach((plugin) => {
+
+                if (path.extname(plugin).toLowerCase() === '.js') {
+                    require('./plugins/' + plugin);
+                }
+
+            });
+
+            console.log('Plugins installed successful ✅');
+            console.log('DILSHAN-MD CONNECTED ✅');
+
+        }
+
+        if (connection === 'close') {
+
+            const statusCode =
+                lastDisconnect?.error?.output?.statusCode;
+
+            console.log(
+                `❌ WhatsApp connection closed. Status: ${statusCode || 'unknown'}`
+            );
+
+            if (statusCode !== DisconnectReason.loggedOut) {
+
+                console.log('🔄 Reconnecting in 5 seconds...');
+
+                setTimeout(() => {
+                    connectToWA();
+                }, 5000);
+
+            } else {
+
+                console.log('🚪 WhatsApp logged out. Please create a new session.');
+
+            }
+        }
+    });
+
+    return conn;
 }
-});
-console.log('Plugins installed successful ✅')
-console.log('THENUWA XMD CONECTED ✅')
+
   
 let up = `┏━━━━━━━━━━━━━━━┓
 ┃ 🤖 BOT       : 𝗧𝗛𝗘𝗡𝗨𝗪𝗔 𝗫𝗠𝗗 BOT CONNECTED ✅
