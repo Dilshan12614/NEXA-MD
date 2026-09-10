@@ -130,11 +130,19 @@ let up = `┏━━━━━━━━━━━━━━━┓
 
 𝗣𝗢𝗪𝗘𝗥𝗘𝗗 𝗕𝗬 𝗧𝗛𝗘𝗡𝗨𝗟𝗔 𝗫𝗠𝗗 〽️𝗗`;
 
-conn.sendMessage(ownerNumber + "@s.whatsapp.net", { image: { url: `https://files.catbox.moe/jgnhg4.jpg` }, caption: up })
+conn.sendMessage(ownerNumber + "@s.whatsapp.net", {
+    image: {
+        url: `https://files.catbox.moe/jgnhg4.jpg`
+    },
+    caption: up
+});
+
+        }
+    });
+    
+    conn.ev.on('creds.update', saveCreds);
 
 }
-})
-conn.ev.on('creds.update', saveCreds)
 
 conn.ev.on('messages.upsert', async(mek) => {
 mek = mek.messages[0]
