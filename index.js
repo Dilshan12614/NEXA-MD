@@ -21,29 +21,37 @@ const { commands } = require('./command')
 
 const ownerNumber = ['94740534738']
 
-//======= 🌟 NEW SECURE SESSION DECODER (NO MORE MEGA ERROR) 🌟 =======
+
+//======= 🌟 NEW SECURE SESSION DECODER (FIXED ARRAY SPLIT) 🌟 =======
 const authFolder = __dirname + '/auth_info_baileys/';
 if (!fs.existsSync(authFolder)) {
     fs.mkdirSync(authFolder, { recursive: true });
 }
 
 if (!fs.existsSync(authFolder + 'creds.json')) {
-    const sessionToUse = config.SESSION_ID;
+    let sessionToUse = config.SESSION_ID;
     if (!sessionToUse) {
         console.log('❌ Please add your session to SESSION_ID env or config.js !!');
     } else {
         try {
-            // සෙෂන් කෝඩ් එක base64 වලින් decode කර creds.json එක සාදයි
-            let base64Code = sessionToUse.split(';;;')[1] || sessionToUse.split(';')[1] || sessionToUse;
-            const decodedData = Buffer.from(base64Code, 'base64').toString('utf-8');
-            JSON.parse(decodedData); // Check if valid JSON
+            // DILSHAN-MD;;; හෝ වෙනත් prefix එකක් ඇත්නම් එය ඉවත් කර නියම base64 කෝඩ් එක පමණක් ගනී
+            if (sessionToUse.includes(';;;')) {
+                sessionToUse = sessionToUse.split(';;;')[1];
+            } else if (sessionToUse.includes(';')) {
+                sessionToUse = sessionToUse.split(';')[1];
+            }
+            
+            const decodedData = Buffer.from(sessionToUse.trim(), 'base64').toString('utf-8');
+            JSON.parse(decodedData); // කෝඩ් එක නිවැරදි JSON එකක්දැයි පරීක්ෂා කරයි
             fs.writeFileSync(authFolder + 'creds.json', decodedData);
             console.log("Session JSON extracted successfully ✅");
         } catch (e) {
-            console.log("⚠️ Session ID format is raw or failed to parse. Trying direct fetch... Error: " + e.message);
+            console.log("⚠️ Session ID format is raw or failed to parse. Error: " + e.message);
         }
     }
 }
+//======================================================================
+
 //======================================================================
 
 const express = require("express");
