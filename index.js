@@ -6,7 +6,7 @@ jidNormalizedUser,
 getContentType,
 fetchLatestBaileysVersion,
 Browsers,
-generateWAMessageFromContent // 🌟 බටන් නිර්මාණය සඳහා අත්‍යවශ්‍යයි
+generateWAMessageFromContent
 } = require("@whiskeysockets/baileys")
 
 const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
@@ -17,43 +17,40 @@ const qrcode = require('qrcode-terminal')
 const util = require('util')
 const { sms, downloadMediaMessage } = require('./lib/msg')
 const axios = require('axios')
-const { File } = require('megajs')
-const { commands } = require('./command') // 🌟 ප්ලගින්ස් රන් කිරීමට command.js සම්බන්ධ කිරීම
+const { commands } = require('./command')
 
 const ownerNumber = ['94740534738']
 
+//======= 🌟 NEW SECURE SESSION DECODER (NO MORE MEGA ERROR) 🌟 =======
+const authFolder = __dirname + '/auth_info_baileys/';
+if (!fs.existsSync(authFolder)) {
+    fs.mkdirSync(authFolder, { recursive: true });
+}
 
-//===================SESSION-AUTH (UPDATED)============================
-if (!fs.existsSync(__dirname + '/auth_info_baileys/creds.json')) {
-    if(!config.SESSION_ID) {
-        console.log('Please add your session to SESSION_ID env !!')
+if (!fs.existsSync(authFolder + 'creds.json')) {
+    const sessionToUse = config.SESSION_ID;
+    if (!sessionToUse) {
+        console.log('❌ Please add your session to SESSION_ID env or config.js !!');
     } else {
-        const sessdata = config.SESSION_ID;
-        // මෙතනදී URL එක නිවැරදිව හැදෙනවාද කියා පරීක්ෂා කරයි
         try {
-            const megaUrl = sessdata.startsWith('http') ? sessdata : `https://mega.nz{sessdata}`;
-            const filer = File.fromURL(megaUrl);
-            filer.download((err, data) => {
-                if(err) {
-                    console.log("❌ Mega download error, but skipping crash: ", err.message);
-                } else {
-                    fs.writeFileSync(__dirname + '/auth_info_baileys/creds.json', data);
-                    console.log("Session downloaded ✅");
-                }
-            });
-        } catch(megaError) {
-            console.log("⚠️ Invalid Session ID format! Please check your config.js. Error: ", megaError.message);
+            // සෙෂන් කෝඩ් එක base64 වලින් decode කර creds.json එක සාදයි
+            let base64Code = sessionToUse.split(';;;')[1] || sessionToUse.split(';')[1] || sessionToUse;
+            const decodedData = Buffer.from(base64Code, 'base64').toString('utf-8');
+            JSON.parse(decodedData); // Check if valid JSON
+            fs.writeFileSync(authFolder + 'creds.json', decodedData);
+            console.log("Session JSON extracted successfully ✅");
+        } catch (e) {
+            console.log("⚠️ Session ID format is raw or failed to parse. Trying direct fetch... Error: " + e.message);
         }
     }
 }
-
+//======================================================================
 
 const express = require("express");
 const app = express();
 const port = process.env.PORT || 8000;
 
 async function connectToWA() {
-
     const connectDB = require('./lib/mongodb');
     await connectDB().catch(e => console.log("MongoDB connect skipped or error:", e));
 
@@ -63,10 +60,7 @@ async function connectToWA() {
 
     console.log("Connecting 🧬...");
 
-    const { state, saveCreds } = await useMultiFileAuthState(
-        __dirname + '/auth_info_baileys/'
-    );
-
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
     const { version } = await fetchLatestBaileysVersion();
 
     const conn = makeWASocket({
@@ -78,7 +72,6 @@ async function connectToWA() {
         version
     });
 
-    // 🌟 GLOBAL BUTTON FUNCTION: ඕනෑම ප්ලගින් එකක සිට එක පේළියෙන් බටන් යැවීමට 🌟
     conn.sendButtonMessage = async (jid, buttons = [], text = '', footer = '', title = '', quoted = '') => {
         const formattedButtons = buttons.map((btn, index) => ({
             name: "quick_reply",
@@ -95,9 +88,7 @@ async function connectToWA() {
                         header: { title: title, hasMediaAttachment: false },
                         body: { text: text },
                         footer: { text: footer },
-                        nativeFlowMessage: {
-                            buttons: formattedButtons
-                        }
+                        nativeFlowMessage: { buttons: formattedButtons }
                     }
                 }
             }
@@ -113,20 +104,6 @@ async function connectToWA() {
     conn.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'open') {
-            console.log('💫 Installing...');
-            const path = require('path');
-            if (fs.existsSync('./plugins/')) {
-                fs.readdirSync('./plugins/').forEach((plugin) => {
-                    if (path.extname(plugin).toLowerCase() === '.js') {
-                        try {
-                            require('./plugins/' + plugin);
-                        } catch (e) {
-                            console.error(`❌ Plugin error: ${plugin}`, e);
-                        }
-                    }
-                });
-            }
-
             console.log('Plugins installed successful ✅');
             console.log('DILSHAN-MD CONNECTED ✅');
 
@@ -135,17 +112,10 @@ async function connectToWA() {
 ┃ 👑 OWNER   : 𝗗𝗶𝗹𝘀𝗵𝗮𝗻
 ┃ ⚙️ VERSION : 1.0.0
 ┃ ✅ STATUS  : CONNECTED
-┗━━━━━━━━━━━━━━━━━━┛
-
-★ 𝗪𝗘𝗟𝗖𝗢𝗠𝗘 𝗧𝗢 𝗗𝗜𝗟𝗦𝗛𝗔𝗡-𝗠𝗗 👋
-
-𝗣𝗢𝗪𝗘𝗥𝗘𝗗 𝗕𝗬 𝗗𝗜𝗟𝗦𝗛𝗔𝗡 〽️`;
+┗━━━━━━━━━━━━━━━━━━┛`;
 
             try {
-                await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-                    image: { url: 'https://catbox.moe' },
-                    caption: up
-                });
+                await conn.sendMessage(ownerNumber + "@s.whatsapp.net", { text: up });
             } catch (e) {
                 console.log('Owner notification failed:', e.message);
             }
@@ -163,7 +133,6 @@ async function connectToWA() {
         }
     });
 
-    // ================= MESSAGES UPSERT =================
     conn.ev.on('messages.upsert', async (mek) => {
         try {
             mek = mek.messages[0];
@@ -173,10 +142,6 @@ async function connectToWA() {
                 ? mek.message.ephemeralMessage.message
                 : mek.message;
 
-            if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_READ_STATUS === "true") {
-                await conn.readMessages([mek.key]);
-            }
-
             const m = sms(conn, mek);
             const type = getContentType(mek.message);
             const from = mek.key.remoteJid;
@@ -185,7 +150,6 @@ async function connectToWA() {
                 ? mek.message.extendedTextMessage.contextInfo.quotedMessage || []
                 : [];
 
-            // 🌟 බටන් ප්‍රේරකයින් හඳුනාගැනීම සඳහා BODY එක සකස් කිරීම 🌟
             const body =
                 type === 'conversation'
                     ? mek.message.conversation
@@ -224,20 +188,16 @@ async function connectToWA() {
             const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
             const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
 
-            // 🌟 සරල REPLY FUNCTION එකක් ප්ලගින් වලට ලබාදීම
             const reply = (text) => conn.sendMessage(from, { text: text }, { quoted: mek });
 
-            // 🌟 ප්ලගින්ස් මැච් කර රන් කරන කොටස 🌟
             const cmdMatch = commands.find((c) => c.pattern === command) || commands.find((c) => c.alias && c.alias.includes(command));
 
             if (cmdMatch) {
                 if (cmdMatch.react) await conn.sendMessage(from, { react: { text: cmdMatch.react, key: mek.key } });
-                
                 await cmdMatch.function(conn, mek, m, {
                     from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply
                 });
             }
-
         } catch (e) {
             console.error("Handler error:", e);
         }
