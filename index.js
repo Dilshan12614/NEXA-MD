@@ -6,7 +6,7 @@ jidNormalizedUser,
 getContentType,
 fetchLatestBaileysVersion,
 Browsers,
-generateWAMessageFromContent // 🌟 මේක අලුතින් එකතු කරා බටන් හදන්න
+generateWAMessageFromContent // 🌟 බටන් නිර්මාණය සඳහා අත්‍යවශ්‍යයි
 } = require("@whiskeysockets/baileys")
 
 const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
@@ -15,9 +15,10 @@ const P = require('pino')
 const config = require('./config')
 const qrcode = require('qrcode-terminal')
 const util = require('util')
-const { sms,downloadMediaMessage } = require('./lib/msg')
+const { sms, downloadMediaMessage } = require('./lib/msg')
 const axios = require('axios')
 const { File } = require('megajs')
+const { commands } = require('./command') // 🌟 ප්ලගින්ස් රන් කිරීමට command.js සම්බන්ධ කිරීම
 
 const ownerNumber = ['94740534738']
 
@@ -25,7 +26,7 @@ const ownerNumber = ['94740534738']
 if (!fs.existsSync(__dirname + '/auth_info_baileys/creds.json')) {
 if(!config.SESSION_ID) return console.log('Please add your session to SESSION_ID env !!')
 const sessdata = config.SESSION_ID
-const filer = File.fromURL(`https://mega.nz/file/${sessdata}`)
+const filer = File.fromURL(`https://mega.nz{sessdata}`)
 filer.download((err, data) => {
 if(err) throw err
 fs.writeFile(__dirname + '/auth_info_baileys/creds.json', data, () => {
@@ -39,10 +40,10 @@ const port = process.env.PORT || 8000;
 async function connectToWA() {
 
     const connectDB = require('./lib/mongodb');
-    await connectDB();
+    await connectDB().catch(e => console.log("MongoDB connect skipped or error:", e));
 
     const { readEnv } = require('./lib/database');
-    const envConfig = await readEnv();
+    const envConfig = await readEnv().catch(() => ({}));
     const prefix = envConfig.PREFIX || config.PREFIX || '.';
 
     console.log("Connecting 🧬...");
@@ -62,7 +63,7 @@ async function connectToWA() {
         version
     });
 
-    // 🌟 1. ඕනෑම ප්ලගින් එකක පාවිච්චි කරන්න පුළුවන් GLOBAL BUTTON FUNCTION එක 🌟
+    // 🌟 GLOBAL BUTTON FUNCTION: ඕනෑම ප්ලගින් එකක සිට එක පේළියෙන් බටන් යැවීමට 🌟
     conn.sendButtonMessage = async (jid, buttons = [], text = '', footer = '', title = '', quoted = '') => {
         const formattedButtons = buttons.map((btn, index) => ({
             name: "quick_reply",
@@ -95,32 +96,20 @@ async function connectToWA() {
     conn.ev.on('creds.update', saveCreds);
 
     conn.ev.on('connection.update', async (update) => {
-
         const { connection, lastDisconnect } = update;
-
         if (connection === 'open') {
-
             console.log('💫 Installing...');
-
             const path = require('path');
-
             if (fs.existsSync('./plugins/')) {
-
                 fs.readdirSync('./plugins/').forEach((plugin) => {
-
                     if (path.extname(plugin).toLowerCase() === '.js') {
                         try {
                             require('./plugins/' + plugin);
                         } catch (e) {
-                            console.error(
-                                `❌ Plugin error: ${plugin}`,
-                                e
-                            );
+                            console.error(`❌ Plugin error: ${plugin}`, e);
                         }
                     }
-
                 });
-
             }
 
             console.log('Plugins installed successful ✅');
@@ -138,114 +127,50 @@ async function connectToWA() {
 𝗣𝗢𝗪𝗘𝗥𝗘𝗗 𝗕𝗬 𝗗𝗜𝗟𝗦𝗛𝗔𝗡 〽️`;
 
             try {
-                await conn.sendMessage(
-                    ownerNumber[0] + "@s.whatsapp.net",
-                    {
-                        image: {
-                            url: 'https://files.catbox.moe/jgnhg4.jpg'
-                        },
-                        caption: up
-                    }
-                );
+                await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
+                    image: { url: 'https://catbox.moe' },
+                    caption: up
+                });
             } catch (e) {
                 console.log('Owner notification failed:', e.message);
             }
         }
 
         if (connection === 'close') {
-
-            const statusCode =
-                lastDisconnect?.error?.output?.statusCode;
-
-            console.log(
-                `❌ WhatsApp connection closed. Status: ${
-                    statusCode || 'unknown'
-                }`
-            );
-
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            console.log(`❌ WhatsApp connection closed. Status: ${statusCode || 'unknown'}`);
             if (statusCode !== DisconnectReason.loggedOut) {
-
                 console.log('🔄 Reconnecting in 5 seconds...');
-
-                setTimeout(() => {
-                    connectToWA();
-                }, 5000);
-
+                setTimeout(() => { connectToWA(); }, 5000);
             } else {
-
-                console.log(
-                    '🚪 WhatsApp logged out. Please create a new session.'
-                );
-
+                console.log('🚪 WhatsApp logged out. Please create a new session.');
             }
         }
-
     });
 
-
-    // ================= MESSAGES =================
-
+    // ================= MESSAGES UPSERT =================
     conn.ev.on('messages.upsert', async (mek) => {
-
         try {
-
             mek = mek.messages[0];
-
             if (!mek || !mek.message) return;
 
-            mek.message =
-                getContentType(mek.message) === 'ephemeralMessage'
-                    ? mek.message.ephemeralMessage.message
-                    : mek.message;
+            mek.message = getContentType(mek.message) === 'ephemeralMessage'
+                ? mek.message.ephemeralMessage.message
+                : mek.message;
 
-            if (
-                mek.key &&
-                mek.key.remoteJid === 'status@broadcast' &&
-                config.AUTO_READ_STATUS === "true"
-            ) {
+            if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_READ_STATUS === "true") {
                 await conn.readMessages([mek.key]);
             }
 
-            if (
-                mek.key &&
-                mek.key.remoteJid === 'status@broadcast' &&
-                config.AUTO_READ_STATUS === "true"
-            ) {
-
-                const emojis = ['❤️‍🩹', '💗', '💛', '💙'];
-
-                const randomEmoji =
-                    emojis[Math.floor(Math.random() * emojis.length)];
-
-                await conn.sendMessage(
-                    mek.key.remoteJid,
-                    {
-                        react: {
-                            text: randomEmoji,
-                            key: mek.key
-                        }
-                    },
-                    {
-                        statusJidList: [mek.key.participant]
-                    }
-                );
-            }
-
             const m = sms(conn, mek);
-
             const type = getContentType(mek.message);
-
-            const content = JSON.stringify(mek.message);
-
             const from = mek.key.remoteJid;
 
-            const quoted =
-                type === 'extendedTextMessage' &&
-                mek.message.extendedTextMessage.contextInfo != null
-                    ? mek.message.extendedTextMessage.contextInfo.quotedMessage || []
-                    : [];
+            const quoted = type === 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null
+                ? mek.message.extendedTextMessage.contextInfo.quotedMessage || []
+                : [];
 
-            // 🌟 2. බටන් වල තියෙන මැසේජ් කියවන්න පුළුවන් වෙන්න BODY එක වෙනස් කලා 🌟
+            // 🌟 බටන් ප්‍රේරකයින් හඳුනාගැනීම සඳහා BODY එක සකස් කිරීම 🌟
             const body =
                 type === 'conversation'
                     ? mek.message.conversation
@@ -264,52 +189,45 @@ async function connectToWA() {
                     : '';
 
             const isCmd = body.startsWith(prefix);
-
-            const command = isCmd
-                ? body
-                    .slice(prefix.length)
-                    .trim()
-                    .split(' ')
-                    .shift()
-                    .toLowerCase()
-                : '';
-
+            const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
             const args = body.trim().split(/ +/).slice(1);
-
             const q = args.join(' ');
 
             const isGroup = from.endsWith('@g.us');
-
-            const sender = mek.key.fromMe
-                ? conn.user.id.split(':')[0] + '@s.whatsapp.net'
-                : mek.key.participant || mek.key.remoteJid;
-
+            const sender = mek.key.fromMe ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : mek.key.participant || mek.key.remoteJid;
             const senderNumber = sender.split('@')[0];
-
             const botNumber = conn.user.id.split(':')[0];
-
             const pushname = mek.pushName || 'Sin Nombre';
-
             const isMe = botNumber.includes(senderNumber);
+            const isOwner = ownerNumber.includes(senderNumber) || isMe;
 
-            const isOwner =
-                ownerNumber.includes(senderNumber) || isMe;
+            const botNumber2 = await jidNormalizedUser(conn.user.id);
+            const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(() => null) : null;
+            const groupName = isGroup && groupMetadata ? groupMetadata.subject : '';
+            const participants = isGroup && groupMetadata ? groupMetadata.participants : [];
+            const groupAdmins = isGroup ? await getGroupAdmins(participants) : [];
+            const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
+            const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
 
-            const botNumber2 =
-                await jidNormalizedUser(conn.user.id);
+            // 🌟 සරල REPLY FUNCTION එකක් ප්ලගින් වලට ලබාදීම
+            const reply = (text) => conn.sendMessage(from, { text: text }, { quoted: mek });
 
-            const groupMetadata = isGroup
-                ? await conn.groupMetadata(from).catch(() => null)
-                : null;
+            // 🌟 ප්ලගින්ස් මැච් කර රන් කරන කොටස 🌟
+            const cmdMatch = commands.find((c) => c.pattern === command) || commands.find((c) => c.alias && c.alias.includes(command));
 
-            const groupName =
-                isGroup && groupMetadata
-                    ? groupMetadata.subject
-                    : '';
+            if (cmdMatch) {
+                if (cmdMatch.react) await conn.sendMessage(from, { react: { text: cmdMatch.react, key: mek.key } });
+                
+                await cmdMatch.function(conn, mek, m, {
+                    from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply
+                });
+            }
 
-            const participants =
-                isGroup && groupMetadata
-                    ? groupMetadata.participants
-                    : [];
+        } catch (e) {
+            console.error("Handler error:", e);
+        }
+    });
+}
 
-            const groupAdmins = isGroup ? await getGroupAdmins(participants) : []; // (පරණ කෝඩ් එක කපපු තැන මෙතනින් සම්පූර්ණ කලා)
+app.listen(port, () => console.log(`Server running on port ${port}`));
+setTimeout(() => { connectToWA(); }, 2000);
