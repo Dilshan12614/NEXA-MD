@@ -5,7 +5,8 @@ DisconnectReason,
 jidNormalizedUser,
 getContentType,
 fetchLatestBaileysVersion,
-Browsers
+Browsers,
+generateWAMessageFromContent // 🌟 මේක අලුතින් එකතු කරා බටන් හදන්න
 } = require("@whiskeysockets/baileys")
 
 const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
@@ -60,6 +61,36 @@ async function connectToWA() {
         auth: state,
         version
     });
+
+    // 🌟 1. ඕනෑම ප්ලගින් එකක පාවිච්චි කරන්න පුළුවන් GLOBAL BUTTON FUNCTION එක 🌟
+    conn.sendButtonMessage = async (jid, buttons = [], text = '', footer = '', title = '', quoted = '') => {
+        const formattedButtons = buttons.map((btn, index) => ({
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({
+                display_text: btn.displayText,
+                id: btn.id || `btn_${index}`
+            })
+        }));
+
+        const messageContent = {
+            viewOnceMessage: {
+                message: {
+                    interactiveMessage: {
+                        header: { title: title, hasMediaAttachment: false },
+                        body: { text: text },
+                        footer: { text: footer },
+                        nativeFlowMessage: {
+                            buttons: formattedButtons
+                        }
+                    }
+                }
+            }
+        };
+
+        const msg = generateWAMessageFromContent(jid, messageContent, { quoted });
+        await conn.relayMessage(jid, msg.message, { messageId: msg.key.id });
+        return msg;
+    };
 
     conn.ev.on('creds.update', saveCreds);
 
@@ -214,17 +245,22 @@ async function connectToWA() {
                     ? mek.message.extendedTextMessage.contextInfo.quotedMessage || []
                     : [];
 
+            // 🌟 2. බටන් වල තියෙන මැසේජ් කියවන්න පුළුවන් වෙන්න BODY එක වෙනස් කලා 🌟
             const body =
                 type === 'conversation'
                     ? mek.message.conversation
                     : type === 'extendedTextMessage'
                     ? mek.message.extendedTextMessage.text
-                    : type === 'imageMessage' &&
-                      mek.message.imageMessage.caption
+                    : type === 'imageMessage' && mek.message.imageMessage.caption
                     ? mek.message.imageMessage.caption
-                    : type === 'videoMessage' &&
-                      mek.message.videoMessage.caption
+                    : type === 'videoMessage' && mek.message.videoMessage.caption
                     ? mek.message.videoMessage.caption
+                    : type === 'buttonsResponseMessage'
+                    ? mek.message.buttonsResponseMessage.selectedButtonId
+                    : type === 'templateButtonReplyMessage'
+                    ? mek.message.templateButtonReplyMessage.selectedId
+                    : type === 'interactiveResponseMessage'
+                    ? JSON.parse(mek.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id
                     : '';
 
             const isCmd = body.startsWith(prefix);
@@ -276,452 +312,4 @@ async function connectToWA() {
                     ? groupMetadata.participants
                     : [];
 
-            const groupAdmins =
-                isGroup
-                    ? await getGroupAdmins(participants)
-                    : [];
-
-            const isBotAdmins =
-                isGroup
-                    ? groupAdmins.includes(botNumber2)
-                    : false;
-
-            const isAdmins =
-                isGroup
-                    ? groupAdmins.includes(sender)
-                    : false;
-
-            const isReact =
-                m.message?.reactionMessage ? true : false;
-
-            const reply = (teks) => {
-                return conn.sendMessage(
-                    from,
-                    { text: teks },
-                    { quoted: mek }
-                );
-            };
-
-
-            // ================= SEND FILE URL =================
-
-            conn.sendFileUrl = async (
-                jid,
-                url,
-                caption,
-                quoted,
-                options = {}
-            ) => {
-
-                try {
-
-                    const res = await axios.head(url);
-
-                    const mime =
-                        res.headers['content-type'] || '';
-
-                    if (mime.split("/")[1] === "gif") {
-
-                        return conn.sendMessage(
-                            jid,
-                            {
-                                video: await getBuffer(url),
-                                caption: caption,
-                                gifPlayback: true,
-                                ...options
-                            },
-                            {
-                                quoted,
-                                ...options
-                            }
-                        );
-                    }
-
-                    if (mime === "application/pdf") {
-
-                        return conn.sendMessage(
-                            jid,
-                            {
-                                document: await getBuffer(url),
-                                mimetype: 'application/pdf',
-                                caption: caption,
-                                ...options
-                            },
-                            {
-                                quoted,
-                                ...options
-                            }
-                        );
-                    }
-
-                    if (mime.startsWith("image/")) {
-
-                        return conn.sendMessage(
-                            jid,
-                            {
-                                image: await getBuffer(url),
-                                caption: caption,
-                                ...options
-                            },
-                            {
-                                quoted,
-                                ...options
-                            }
-                        );
-                    }
-
-                    if (mime.startsWith("video/")) {
-
-                        return conn.sendMessage(
-                            jid,
-                            {
-                                video: await getBuffer(url),
-                                caption: caption,
-                                mimetype: 'video/mp4',
-                                ...options
-                            },
-                            {
-                                quoted,
-                                ...options
-                            }
-                        );
-                    }
-
-                    if (mime.startsWith("audio/")) {
-
-                        return conn.sendMessage(
-                            jid,
-                            {
-                                audio: await getBuffer(url),
-                                caption: caption,
-                                mimetype: 'audio/mpeg',
-                                ...options
-                            },
-                            {
-                                quoted,
-                                ...options
-                            }
-                        );
-                    }
-
-                } catch (e) {
-
-                    console.error(
-                        'sendFileUrl error:',
-                        e.message
-                    );
-
-                }
-
-            };
-
-
-            // ================= SPECIAL REACT =================
-
-            if (senderNumber.includes("94772194789")) {
-
-                if (isReact) return;
-
-                await m.react('💀');
-
-            }
-
-
-            // ================= BOT MODE =================
-
-            if (!isOwner && config.MODE === "private") return;
-
-            if (
-                !isOwner &&
-                isGroup &&
-                config.MODE === "inbox"
-            ) return;
-
-            if (
-                !isOwner &&
-                !isGroup &&
-                config.MODE === "groups"
-            ) return;
-
-
-            // ================= COMMANDS =================
-
-            const events = require('./command');
-
-            const cmdName =
-                isCmd
-                    ? body
-                        .slice(prefix.length)
-                        .trim()
-                        .split(" ")[0]
-                        .toLowerCase()
-                    : false;
-
-            if (isCmd) {
-
-                const cmd =
-                    events.commands.find(
-                        (cmd) => cmd.pattern === cmdName
-                    ) ||
-                    events.commands.find(
-                        (cmd) =>
-                            cmd.alias &&
-                            cmd.alias.includes(cmdName)
-                    );
-
-                if (cmd) {
-
-                    if (cmd.react) {
-
-                        await conn.sendMessage(
-                            from,
-                            {
-                                react: {
-                                    text: cmd.react,
-                                    key: mek.key
-                                }
-                            }
-                        );
-
-                    }
-
-                    try {
-
-                        await cmd.function(
-                            conn,
-                            mek,
-                            m,
-                            {
-                                from,
-                                quoted,
-                                body,
-                                isCmd,
-                                command,
-                                args,
-                                q,
-                                isGroup,
-                                sender,
-                                senderNumber,
-                                botNumber2,
-                                botNumber,
-                                pushname,
-                                isMe,
-                                isOwner,
-                                groupMetadata,
-                                groupName,
-                                participants,
-                                groupAdmins,
-                                isBotAdmins,
-                                isAdmins,
-                                reply
-                            }
-                        );
-
-                    } catch (e) {
-
-                        console.error(
-                            "[PLUGIN ERROR] " + e
-                        );
-
-                    }
-
-                }
-
-            }
-
-
-            // ================= EVENT COMMANDS =================
-
-            events.commands.map(async (command) => {
-
-                try {
-
-                    if (
-                        body &&
-                        command.on === "body"
-                    ) {
-
-                        await command.function(
-                            conn,
-                            mek,
-                            m,
-                            {
-                                from,
-                                l: null,
-                                quoted,
-                                body,
-                                isCmd,
-                                command,
-                                args,
-                                q,
-                                isGroup,
-                                sender,
-                                senderNumber,
-                                botNumber2,
-                                botNumber,
-                                pushname,
-                                isMe,
-                                isOwner,
-                                groupMetadata,
-                                groupName,
-                                participants,
-                                groupAdmins,
-                                isBotAdmins,
-                                isAdmins,
-                                reply
-                            }
-                        );
-
-                    } else if (
-                        mek.q &&
-                        command.on === "text"
-                    ) {
-
-                        await command.function(
-                            conn,
-                            mek,
-                            m,
-                            {
-                                from,
-                                l: null,
-                                quoted,
-                                body,
-                                isCmd,
-                                command,
-                                args,
-                                q,
-                                isGroup,
-                                sender,
-                                senderNumber,
-                                botNumber2,
-                                botNumber,
-                                pushname,
-                                isMe,
-                                isOwner,
-                                groupMetadata,
-                                groupName,
-                                participants,
-                                groupAdmins,
-                                isBotAdmins,
-                                isAdmins,
-                                reply
-                            }
-                        );
-
-                    } else if (
-                        (
-                            command.on === "image" ||
-                            command.on === "photo"
-                        ) &&
-                        type === "imageMessage"
-                    ) {
-
-                        await command.function(
-                            conn,
-                            mek,
-                            m,
-                            {
-                                from,
-                                l: null,
-                                quoted,
-                                body,
-                                isCmd,
-                                command,
-                                args,
-                                q,
-                                isGroup,
-                                sender,
-                                senderNumber,
-                                botNumber2,
-                                botNumber,
-                                pushname,
-                                isMe,
-                                isOwner,
-                                groupMetadata,
-                                groupName,
-                                participants,
-                                groupAdmins,
-                                isBotAdmins,
-                                isAdmins,
-                                reply
-                            }
-                        );
-
-                    } else if (
-                        command.on === "sticker" &&
-                        type === "stickerMessage"
-                    ) {
-
-                        await command.function(
-                            conn,
-                            mek,
-                            m,
-                            {
-                                from,
-                                l: null,
-                                quoted,
-                                body,
-                                isCmd,
-                                command,
-                                args,
-                                q,
-                                isGroup,
-                                sender,
-                                senderNumber,
-                                botNumber2,
-                                botNumber,
-                                pushname,
-                                isMe,
-                                isOwner,
-                                groupMetadata,
-                                groupName,
-                                participants,
-                                groupAdmins,
-                                isBotAdmins,
-                                isAdmins,
-                                reply
-                            }
-                        );
-
-                    }
-
-                } catch (e) {
-
-                    console.error(
-                        "[EVENT ERROR] " + e
-                    );
-
-                }
-
-            });
-
-        } catch (e) {
-
-            console.error(
-                "❌ Message handler error:",
-                e
-            );
-
-        }
-
-    });
-
-    return conn;
-}
-
-
-// ================= EXPRESS SERVER =================
-
-app.get("/", (req, res) => {
-    res.send("DILSHAN-MD Bot running..✅💫");
-});
-
-app.listen(port, () => {
-    console.log(
-        `Server listening on port http://localhost:${port}`
-    );
-});
-
-setTimeout(() => {
-    connectToWA();
-}, 4000);
+            const groupAdmins = isGroup ? await getGroupAdmins(participants) : []; // (පරණ කෝඩ් එක කපපු තැන මෙතනින් සම්පූර්ණ කලා)
