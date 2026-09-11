@@ -1,342 +1,298 @@
-const config = require('../config');
 const { cmd, commands } = require('../command');
 
-// ============================================
-// 🖼️ MENU IMAGE
-// ============================================
-const MENU_IMAGE =
-    'https://i.postimg.cc/Y9VQtfYS/file-000000006b04821189e40920bd7a1471.png';
-
-let AIRich = null;
-
-// ============================================
-// 🤖 LOAD AIRich
-// ============================================
-try {
-    const udmodz = require('baileys-pro');
-
-    if (udmodz && udmodz.AIRich) {
-        AIRich = udmodz.AIRich;
-        console.log('✅ AIRich loaded via baileys-pro');
-    }
-} catch (_) {
-    try {
-        const udmodz = require('amiudmodz');
-
-        if (udmodz && udmodz.AIRich) {
-            AIRich = udmodz.AIRich;
-            console.log('✅ AIRich loaded via amiudmodz');
-        }
-    } catch (_) {}
-}
-
-if (!AIRich) {
-    console.warn('⚠️ AIRich module not found. Using normal menu.');
-}
-
-
-// ============================================
-// 📋 MENU COMMAND
-// ============================================
 cmd({
-    pattern: "menu",
-    alias: ["help", "commands", "allmenu"],
-    desc: "Show interactive bot menu",
+    pattern: "menu2",
+    alias: ["allmenu", "menu"],
+    desc: "Show DILA-MD menu",
     category: "main",
-    react: "⚡",
+    react: "📂",
     filename: __filename
 },
-async (conn, mek, m, { from, reply }) => {
+async (conn, mek, m, {
+    from,
+    reply,
+    args
+}) => {
 
     try {
 
-        const botName = config.BOT_NAME || "DILA-MD";
+        const option = args[0]?.toLowerCase();
 
-        // ============================================
-        // 🔥 AIRICH MENU
-        // ============================================
-        if (AIRich && typeof conn.menurich === 'function') {
+        // ================= MAIN MENU =================
 
-            const rich = new AIRich(conn)
-                .setTitle(`🤖 ${botName}`)
-                .addImage(MENU_IMAGE, {
-                    status: 'LOADING',
-                    update_text: '🖼️ Loading Menu...',
-                    id: 'menuimg'
-                })
-                .addText(
-                    `✨ *Welcome to ${botName}*\n\n` +
-                    `⚡ Select a category below to control the bot.`,
-                    {
-                        id: 'menutext'
-                    }
-                )
-                .setFooter('🚀 Powered by ' + botName);
+        if (!option) {
 
-            await rich.send(from);
+            let menu = `
+╭━━━〔 🤖 𝐃𝐈𝐋𝐀-𝐌𝐃 〕━━━╮
+┃
+┃ 👋 𝐖𝐄𝐋𝐂𝐎𝐌𝐄
+┃
+┃ 1️⃣ 📥 DOWNLOAD
+┃ 2️⃣ 🔎 SEARCH
+┃ 3️⃣ 🤖 AI
+┃ 4️⃣ 👑 OWNER
+┃ 5️⃣ 👥 GROUP
+┃ 6️⃣ ℹ️ INFO
+┃ 7️⃣ 🔄 CONVERTER
+┃ 8️⃣ 🎲 RANDOM
+┃ 9️⃣ 🌐 OTHER
+┃
+╰━━━━━━━━━━━━━━━━━━━━╯
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
+💡 Use:
+.menu 1
+.menu 2
+.menu 3
 
-            rich.addImage(MENU_IMAGE, {
-                replace: 'menuimg'
-            });
+⚡ 𝐃𝐈𝐋𝐀-𝐌𝐃
+👑 𝐎𝐖𝐍𝐄𝐑 : Dilshan
+`;
 
-            rich.addText(
-                `╭━━━〔 *${botName} CONTROL PANEL* 〕━━━╮\n` +
-                `┃\n` +
-                `┃ ⚡ *Fast & Powerful WhatsApp Bot*\n` +
-                `┃ 🛡️ Easy interactive controls\n` +
-                `┃ 🎯 Choose a category below\n` +
-                `┃\n` +
-                `╰━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+            return await conn.sendMessage(
+                from,
                 {
-                    replace: 'menutext'
+                    image: {
+                        url: "https://files.catbox.moe/jgnhg4.jpg"
+                    },
+                    caption: menu
+                },
+                {
+                    quoted: mek
                 }
             );
-
-            await rich.sendEdit();
-
-            // ============================================
-            // 🎛️ CONTROL PANEL
-            // ============================================
-            await conn.menurich(from, {
-
-                title: `🤖 *${botName} CONTROL PANEL*`,
-
-                imageUrl: MENU_IMAGE,
-
-                menus: [
-
-                    // ====================================
-                    // ⚡ MAIN
-                    // ====================================
-                    {
-                        title: "⚡ MAIN MENU",
-
-                        buttons: [
-                            {
-                                label: "🏓 Ping",
-                                id: ".ping",
-                                toast: "🏓 Checking bot latency..."
-                            },
-                            {
-                                label: "🤖 Alive",
-                                id: ".alive",
-                                toast: "🤖 Checking system status..."
-                            },
-                            {
-                                label: "👤 Owner",
-                                id: ".owner",
-                                toast: "👤 Opening owner info..."
-                            }
-                        ]
-                    },
-
-                    // ====================================
-                    // 📥 DOWNLOAD
-                    // ====================================
-                    {
-                        title: "📥 DOWNLOAD",
-
-                        buttons: [
-                            {
-                                label: "🎵 Song",
-                                id: ".song",
-                                toast: "🎵 Song downloader selected"
-                            },
-                            {
-                                label: "🎬 Video",
-                                id: ".video",
-                                toast: "🎬 Video downloader selected"
-                            },
-                            {
-                                label: "📷 Image",
-                                id: ".img",
-                                toast: "📷 Image downloader selected"
-                            },
-                            {
-                                label: "📱 TikTok",
-                                id: ".tt",
-                                toast: "📱 TikTok downloader selected"
-                            }
-                        ]
-                    },
-
-                    // ====================================
-                    // 🔍 SEARCH
-                    // ====================================
-                    {
-                        title: "🔍 SEARCH",
-
-                        buttons: [
-                            {
-                                label: "🎬 YouTube",
-                                id: ".yts",
-                                toast: "🔍 YouTube search selected"
-                            },
-                            {
-                                label: "🌐 Google",
-                                id: ".google",
-                                toast: "🌐 Google search selected"
-                            },
-                            {
-                                label: "📷 Pinterest",
-                                id: ".pinterest",
-                                toast: "📷 Pinterest search selected"
-                            }
-                        ]
-                    },
-
-                    // ====================================
-                    // 👥 GROUP
-                    // ====================================
-                    {
-                        title: "👥 GROUP",
-
-                        buttons: [
-                            {
-                                label: "👥 Group Info",
-                                id: ".groupinfo",
-                                toast: "👥 Group information"
-                            },
-                            {
-                                label: "🔗 Link",
-                                id: ".link",
-                                toast: "🔗 Getting group link..."
-                            },
-                            {
-                                label: "🔒 Lock",
-                                id: ".lock",
-                                toast: "🔒 Group control"
-                            },
-                            {
-                                label: "🔓 Unlock",
-                                id: ".unlock",
-                                toast: "🔓 Group control"
-                            }
-                        ]
-                    },
-
-                    // ====================================
-                    // 🛠️ TOOLS
-                    // ====================================
-                    {
-                        title: "🛠️ TOOLS",
-
-                        buttons: [
-                            {
-                                label: "🖼️ Sticker",
-                                id: ".sticker",
-                                toast: "🖼️ Sticker maker selected"
-                            },
-                            {
-                                label: "🎙️ To Voice",
-                                id: ".tovoice",
-                                toast: "🎙️ Voice converter selected"
-                            },
-                            {
-                                label: "📄 To PDF",
-                                id: ".topdf",
-                                toast: "📄 PDF converter selected"
-                            }
-                        ]
-                    },
-
-                    // ====================================
-                    // 👑 OWNER
-                    // ====================================
-                    {
-                        title: "👑 OWNER",
-
-                        buttons: [
-                            {
-                                label: "👤 Owner",
-                                id: ".owner",
-                                toast: "👤 Owner information"
-                            },
-                            {
-                                label: "📊 Status",
-                                id: ".alive",
-                                toast: "📊 System status"
-                            }
-                        ]
-                    }
-                ],
-
-                // ============================================
-                // 🔗 FOOTER LINKS
-                // ============================================
-                footerLinks: [
-                    {
-                        label: "💻 GitHub",
-                        url: "https://github.com/",
-                    },
-                    {
-                        label: "📢 Channel",
-                        url: "https://whatsapp.com/",
-                    }
-                ]
-            });
-
-            return;
         }
 
 
-        // ============================================
-        // 📱 FALLBACK MENU
-        // ============================================
-        const menuText = `
-╭━━━〔 *${botName}* 〕━━━╮
-┃
-┃ ⚡ *CONTROL PANEL*
-┃
-┃ 📌 *MAIN*
-┃ • .alive
-┃ • .ping
+        // ================= DOWNLOAD =================
+
+        if (option === "1" || option === "download") {
+
+            return await reply(`
+╭━━〔 📥 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 〕━━╮
+
+┃ • .fb <url>
+┃ • .insta <url>
+┃ • .video <url>
+┃ • .gdrive <url>
+┃ • .twitter <url>
+┃ • .tt <url>
+┃ • .mediafire <url>
+┃ • .song <query>
+┃ • .play <query>
+┃ • .video <query>
+┃ • .img <query>
+┃ • .apk <name>
+
+╰━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= SEARCH =================
+
+        if (option === "2" || option === "search") {
+
+            return await reply(`
+╭━━〔 🔎 𝐒𝐄𝐀𝐑𝐂𝐇 〕━━╮
+
+┃ • .yts <text>
+┃ • .yts1 <text>
+┃ • .movie <text>
+┃ • .img <text>
+
+╰━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= AI =================
+
+        if (option === "3" || option === "ai") {
+
+            return await reply(`
+╭━━〔 🤖 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋 𝐈𝐍𝐓𝐄𝐋𝐋𝐈𝐆𝐄𝐍𝐂𝐄 〕━━╮
+
+┃ • .gpt <text>
+┃ • .ai <text>
+
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= OWNER =================
+
+        if (option === "4" || option === "owner") {
+
+            return await reply(`
+╭━━〔 👑 𝐎𝐖𝐍𝐄𝐑 〕━━╮
+
+┃ • .support
+┃ • .setautobio
+┃ • .mute
+┃ • .unmute
 ┃ • .owner
-┃
-┃ 📥 *DOWNLOAD*
-┃ • .song
-┃ • .video
-┃ • .img
-┃ • .tt
-┃
-┃ 🔍 *SEARCH*
-┃ • .yts
-┃ • .google
-┃ • .pinterest
-┃
-┃ 👥 *GROUP*
-┃ • .groupinfo
+┃ • .repo
+┃ • .system
+┃ • .status
+┃ • .botinfo
+┃ • .restart
+
+╰━━━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= GROUP =================
+
+        if (option === "5" || option === "group") {
+
+            return await reply(`
+╭━━〔 👥 𝐆𝐑𝐎𝐔𝐏 〕━━╮
+
+┃ • .remove
+┃ • .delete
+┃ • .add
+┃ • .kick
+┃ • .setgoodbye
+┃ • .setwelcome
+┃ • .promote
+┃ • .demote
+┃ • .support
+┃ • .getpic
 ┃ • .link
-┃ • .lock
-┃ • .unlock
-┃
-┃ 🛠️ *TOOLS*
+
+╰━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= INFO =================
+
+        if (option === "6" || option === "info") {
+
+            return await reply(`
+╭━━〔 ℹ️ 𝐈𝐍𝐅𝐎 〕━━╮
+
+┃ • .menu
+┃ • .alive
+┃ • .rebot
+┃ • .restart
+┃ • .botinfo
+┃ • .status
+┃ • .support
+┃ • .ping
+┃ • .system
+
+╰━━━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= CONVERTER =================
+
+        if (option === "7" || option === "converter") {
+
+            return await reply(`
+╭━━〔 🔄 𝐂𝐎𝐍𝐕𝐄𝐑𝐓𝐄𝐑 〕━━╮
+
 ┃ • .sticker
-┃ • .tovoice
-┃ • .topdf
-┃
-╰━━━━━━━━━━━━━━━━━━╯
 
-> ✨ ${botName} is online
-`;
+╰━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-        await conn.sendMessage(
-            from,
-            {
-                image: { url: MENU_IMAGE },
-                caption: menuText
-            },
-            { quoted: mek }
-        );
+↩️ .menu
+`);
+        }
+
+
+        // ================= RANDOM =================
+
+        if (option === "8" || option === "random") {
+
+            return await reply(`
+╭━━〔 🎲 𝐑𝐀𝐍𝐃𝐎𝐌 〕━━╮
+
+┃ • .king
+┃ • .dog
+┃ • .anime
+┃ • .animegirl
+┃ • .animegirl1
+┃ • .animegirl2
+┃ • .animegirl3
+┃ • .animegirl4
+┃ • .animegirl5
+
+╰━━━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        // ================= OTHER =================
+
+        if (option === "9" || option === "other") {
+
+            return await reply(`
+╭━━〔 🌐 𝐎𝐓𝐇𝐄𝐑 〕━━╮
+
+┃ • .news
+┃ • .weather
+┃ • .trt
+┃ • .movie
+┃ • .fact
+┃ • .githubstalk
+┃ • .gpass
+┃ • .hack
+┃ • .quote
+┃ • .srepo
+┃ • .define
+
+╰━━━━━━━━━━━━━━━━━━━━╯
+
+↩️ .menu
+`);
+        }
+
+
+        return await reply(`
+❌ Invalid option.
+
+Use:
+
+.menu
+
+or
+
+.menu 1
+.menu 2
+.menu 3
+.menu 4
+.menu 5
+.menu 6
+.menu 7
+.menu 8
+.menu 9
+`);
 
     } catch (e) {
 
-        console.error("❌ Menu Error:", e);
+        console.error("Menu Error:", e);
 
-        await reply(
-            `❌ *Menu Error*\n\n${e.message}`
+        return await reply(
+            "❌ Menu error: " + e.message
         );
     }
 });
