@@ -22,7 +22,7 @@ const { commands } = require('./command')
 const ownerNumber = ['94740534738']
 
 
-//======= 🌟 NEW SECURE SESSION DECODER (FIXED ARRAY SPLIT) 🌟 =======
+//======= 🌟 NEW SECURE SESSION DECODER (PERFECT STRING FIX) 🌟 =======
 const authFolder = __dirname + '/auth_info_baileys/';
 if (!fs.existsSync(authFolder)) {
     fs.mkdirSync(authFolder, { recursive: true });
@@ -34,14 +34,17 @@ if (!fs.existsSync(authFolder + 'creds.json')) {
         console.log('❌ Please add your session to SESSION_ID env or config.js !!');
     } else {
         try {
-            // DILSHAN-MD;;; හෝ වෙනත් prefix එකක් ඇත්නම් එය ඉවත් කර නියම base64 කෝඩ් එක පමණක් ගනී
-            if (sessionToUse.includes(';;;')) {
-                sessionToUse = sessionToUse.split(';;;')[1];
-            } else if (sessionToUse.includes(';')) {
-                sessionToUse = sessionToUse.split(';')[1];
-            }
+            // බොට්ගේ නම සහ සෙමිකෝලන (Prefix) කෙලින්ම ඉවත් කර පිරිසිදු කෝඩ් එක පමණක් ගනී
+            let rawBase64 = String(sessionToUse)
+                .replace(/^DILSHAN-MD;;;/, '')
+                .replace(/^DILSHAN-MD;;/, '')
+                .replace(/^DILSHAN-MD;/, '')
+                .replace(/^NEXA-MD;;;/, '')
+                .replace(/^NEXA-MD;;/, '')
+                .replace(/^NEXA-MD;/, '')
+                .trim();
             
-            const decodedData = Buffer.from(sessionToUse.trim(), 'base64').toString('utf-8');
+            const decodedData = Buffer.from(rawBase64, 'base64').toString('utf-8');
             JSON.parse(decodedData); // කෝඩ් එක නිවැරදි JSON එකක්දැයි පරීක්ෂා කරයි
             fs.writeFileSync(authFolder + 'creds.json', decodedData);
             console.log("Session JSON extracted successfully ✅");
@@ -50,6 +53,8 @@ if (!fs.existsSync(authFolder + 'creds.json')) {
         }
     }
 }
+//======================================================================
+
 //======================================================================
 
 //======================================================================
