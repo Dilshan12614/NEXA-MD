@@ -22,16 +22,31 @@ const { commands } = require('./command') // 🌟 ප්ලගින්ස් �
 
 const ownerNumber = ['94740534738']
 
-//===================SESSION-AUTH============================
+
+//===================SESSION-AUTH (UPDATED)============================
 if (!fs.existsSync(__dirname + '/auth_info_baileys/creds.json')) {
-if(!config.SESSION_ID) return console.log('Please add your session to SESSION_ID env !!')
-const sessdata = config.SESSION_ID
-const filer = File.fromURL(`https://mega.nz{sessdata}`)
-filer.download((err, data) => {
-if(err) throw err
-fs.writeFile(__dirname + '/auth_info_baileys/creds.json', data, () => {
-console.log("Session downloaded ✅")
-})})}
+    if(!config.SESSION_ID) {
+        console.log('Please add your session to SESSION_ID env !!')
+    } else {
+        const sessdata = config.SESSION_ID;
+        // මෙතනදී URL එක නිවැරදිව හැදෙනවාද කියා පරීක්ෂා කරයි
+        try {
+            const megaUrl = sessdata.startsWith('http') ? sessdata : `https://mega.nz{sessdata}`;
+            const filer = File.fromURL(megaUrl);
+            filer.download((err, data) => {
+                if(err) {
+                    console.log("❌ Mega download error, but skipping crash: ", err.message);
+                } else {
+                    fs.writeFileSync(__dirname + '/auth_info_baileys/creds.json', data);
+                    console.log("Session downloaded ✅");
+                }
+            });
+        } catch(megaError) {
+            console.log("⚠️ Invalid Session ID format! Please check your config.js. Error: ", megaError.message);
+        }
+    }
+}
+
 
 const express = require("express");
 const app = express();
