@@ -1,221 +1,213 @@
-const {
-default: makeWASocket,
-useMultiFileAuthState,
-DisconnectReason,
-jidNormalizedUser,
-getContentType,
-fetchLatestBaileysVersion,
-Browsers,
-generateWAMessageFromContent
-} = require("@whiskeysockets/baileys")
+import { default: makeWASocket, useMultiFileAuthState, delay, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import pino from 'pino';
+import fs from 'fs';
+import axios from 'axios';
+import { download } from './mega.js'; // mega.js එකෙන් download function එක ගනී
 
-const { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson } = require('./lib/functions')
-const fs = require('fs')
-const P = require('pino')
-const config = require('./config')
-const qrcode = require('qrcode-terminal')
-const util = require('util')
-const { sms, downloadMediaMessage } = require('./lib/msg')
-const axios = require('axios')
-const { commands } = require('./command')
+// 🔐 ඔයාගේ සැබෑ කෙටි සෙෂන් ID එක මෙතනට දාන්න
+const SESSION_ID = "DILSHAN-MD~xxxxxx"; 
 
-const ownerNumber = ['94740534738']
-
-
-//======= 🌟 NEW SECURE SESSION DECODER (PERFECT STRING FIX) 🌟 =======
-const authFolder = __dirname + '/auth_info_baileys/';
-if (!fs.existsSync(authFolder)) {
-    fs.mkdirSync(authFolder, { recursive: true });
-}
-
-if (!fs.existsSync(authFolder + 'creds.json')) {
-    let sessionToUse = config.SESSION_ID;
-    if (!sessionToUse) {
-        console.log('❌ Please add your session to SESSION_ID env or config.js !!');
-    } else {
+async function startBot() {
+    const authFolder = './auth_session';
+    
+    if (!fs.existsSync(authFolder + '/creds.json')) {
+        console.log("[BOT] Session files not found. Fetching from Mega...");
         try {
-            // බොට්ගේ නම සහ සෙමිකෝලන (Prefix) කෙලින්ම ඉවත් කර පිරිසිදු කෝඩ් එක පමණක් ගනී
-            let rawBase64 = String(sessionToUse)
-                .replace(/^DILSHAN-MD;;;/, '')
-                .replace(/^DILSHAN-MD;;/, '')
-                .replace(/^DILSHAN-MD;/, '')
-                .replace(/^NEXA-MD;;;/, '')
-                .replace(/^NEXA-MD;;/, '')
-                .replace(/^NEXA-MD;/, '')
-                .trim();
-            
-            const decodedData = Buffer.from(rawBase64, 'base64').toString('utf-8');
-            JSON.parse(decodedData); // කෝඩ් එක නිවැරදි JSON එකක්දැයි පරීක්ෂා කරයි
-            fs.writeFileSync(authFolder + 'creds.json', decodedData);
-            console.log("Session JSON extracted successfully ✅");
-        } catch (e) {
-            console.log("⚠️ Session ID format is raw or failed to parse. Error: " + e.message);
+            fs.mkdirSync(authFolder, { recursive: true });
+            const fileBuffer = await download(SESSION_ID); 
+            fs.writeFileSync(`${authFolder}/creds.json`, fileBuffer);
+            console.log("[BOT] Session downloaded successfully!");
+        } catch (err) {
+            console.error("[BOT] Failed to download session. Check Session ID!", err);
+            return;
         }
     }
-}
-//======================================================================
-
-//======================================================================
-
-//======================================================================
-
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 8000;
-
-async function connectToWA() {
-    const connectDB = require('./lib/mongodb');
-    await connectDB().catch(e => console.log("MongoDB connect skipped or error:", e));
-
-    const { readEnv } = require('./lib/database');
-    const envConfig = await readEnv().catch(() => ({}));
-    const prefix = envConfig.PREFIX || config.PREFIX || '.';
-
-    console.log("Connecting 🧬...");
 
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
     const { version } = await fetchLatestBaileysVersion();
 
-    const conn = makeWASocket({
-        logger: P({ level: 'silent' }),
-        printQRInTerminal: false,
-        browser: Browsers.macOS('Safari'),
-        syncFullHistory: false,
+    const sock = makeWASocket({
+        version,
         auth: state,
-        version
+        printQRInTerminal: true,
+        logger: pino({ level: 'silent' }),
     });
 
-    conn.sendButtonMessage = async (jid, buttons = [], text = '', footer = '', title = '', quoted = '') => {
-        const formattedButtons = buttons.map((btn, index) => ({
-            name: "quick_reply",
-            buttonParamsJson: JSON.stringify({
-                display_text: btn.displayText,
-                id: btn.id || `btn_${index}`
-            })
-        }));
+    sock.ev.on('creds.update', saveCreds);
 
-        const messageContent = {
-            viewOnceMessage: {
-                message: {
-                    interactiveMessage: {
-                        header: { title: title, hasMediaAttachment: false },
-                        body: { text: text },
-                        footer: { text: footer },
-                        nativeFlowMessage: { buttons: formattedButtons }
-                    }
-                }
-            }
-        };
-
-        const msg = generateWAMessageFromContent(jid, messageContent, { quoted });
-        await conn.relayMessage(jid, msg.message, { messageId: msg.key.id });
-        return msg;
-    };
-
-    conn.ev.on('creds.update', saveCreds);
-
-    conn.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === 'open') {
-            console.log('Plugins installed successful ✅');
-            console.log('DILSHAN-MD CONNECTED ✅');
-
-            const up = `┏━━━━━━━━━━━━━━━━━━┓
-┃ 🤖 BOT     : 𝗗𝗜𝗟𝗦𝗛𝗔𝗡-𝗠𝗗
-┃ 👑 OWNER   : 𝗗𝗶𝗹𝘀𝗵𝗮𝗻
-┃ ⚙️ VERSION : 1.0.0
-┃ ✅ STATUS  : CONNECTED
-┗━━━━━━━━━━━━━━━━━━┛`;
-
-            try {
-                await conn.sendMessage(ownerNumber + "@s.whatsapp.net", { text: up });
-            } catch (e) {
-                console.log('Owner notification failed:', e.message);
-            }
-        }
-
+    sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
         if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            console.log(`❌ WhatsApp connection closed. Status: ${statusCode || 'unknown'}`);
-            if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('🔄 Reconnecting in 5 seconds...');
-                setTimeout(() => { connectToWA(); }, 5000);
-            } else {
-                console.log('🚪 WhatsApp logged out. Please create a new session.');
-            }
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
+            console.log(`[BOT] Connection closed. Reconnecting: ${shouldReconnect}`);
+            if (shouldReconnect) startBot();
+        } else if (connection === 'open') {
+            console.log('[BOT] DILSHAN-MD is online and ready! 🧚‍♂️');
         }
     });
 
-    conn.ev.on('messages.upsert', async (mek) => {
+    // 📩 මැසේජ් ලැබෙද්දී ක්‍රියාත්මක වන නිවැරදි Baileys Logic එක
+    sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
-            mek = mek.messages[0];
-            if (!mek || !mek.message) return;
+            const mek = chatUpdate.messages[0];
+            if (!mek.message) return;
+            if (mek.key && mek.key.remoteJid === 'status@broadcast') return;
 
-            mek.message = getContentType(mek.message) === 'ephemeralMessage'
-                ? mek.message.ephemeralMessage.message
-                : mek.message;
-
-            const m = sms(conn, mek);
-            const type = getContentType(mek.message);
             const from = mek.key.remoteJid;
+            
+            // 🛠️ Baileys වල නිවැරදිව මැසේජ් Type එක හඳුනාගැනීම
+            const type = Object.keys(mek.message)[0] === 'ephemeralMessage' ? Object.keys(mek.message.ephemeralMessage.message)[0] : Object.keys(mek.message)[0];
+            
+            let body = '';
+            if (type === 'conversation') body = mek.message.conversation;
+            else if (type === 'extendedTextMessage') body = mek.message.extendedTextMessage.text;
+            else if (type === 'imageMessage') body = mek.message.imageMessage.caption;
+            else if (type === 'videoMessage') body = mek.message.videoMessage.caption;
 
-            const quoted = type === 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null
-                ? mek.message.extendedTextMessage.contextInfo.quotedMessage || []
-                : [];
-
-            const body =
-                type === 'conversation'
-                    ? mek.message.conversation
-                    : type === 'extendedTextMessage'
-                    ? mek.message.extendedTextMessage.text
-                    : type === 'imageMessage' && mek.message.imageMessage.caption
-                    ? mek.message.imageMessage.caption
-                    : type === 'videoMessage' && mek.message.videoMessage.caption
-                    ? mek.message.videoMessage.caption
-                    : type === 'buttonsResponseMessage'
-                    ? mek.message.buttonsResponseMessage.selectedButtonId
-                    : type === 'templateButtonReplyMessage'
-                    ? mek.message.templateButtonReplyMessage.selectedId
-                    : type === 'interactiveResponseMessage'
-                    ? JSON.parse(mek.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson).id
-                    : '';
-
+            const prefix = '.'; 
             const isCmd = body.startsWith(prefix);
-            const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
+            const command = isCmd ? body.slice(prefix.length).trim().split(/ +/).shift().toLowerCase() : '';
             const args = body.trim().split(/ +/).slice(1);
             const q = args.join(' ');
 
-            const isGroup = from.endsWith('@g.us');
-            const sender = mek.key.fromMe ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : mek.key.participant || mek.key.remoteJid;
-            const senderNumber = sender.split('@')[0];
-            const botNumber = conn.user.id.split(':')[0];
-            const pushname = mek.pushName || 'Sin Nombre';
-            const isMe = botNumber.includes(senderNumber);
-            const isOwner = ownerNumber.includes(senderNumber) || isMe;
+            const reply = async (text) => {
+                await sock.sendMessage(from, { text: text }, { quoted: mek });
+            };
 
-            const botNumber2 = await jidNormalizedUser(conn.user.id);
-            const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(() => null) : null;
-            const groupName = isGroup && groupMetadata ? groupMetadata.subject : '';
-            const participants = isGroup && groupMetadata ? groupMetadata.participants : [];
-            const groupAdmins = isGroup ? await getGroupAdmins(participants) : [];
-            const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
-            const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
+            if (!isCmd) return;
 
-            const reply = (text) => conn.sendMessage(from, { text: text }, { quoted: mek });
+            switch (command) {
 
-            const cmdMatch = commands.find((c) => c.pattern === command) || commands.find((c) => c.alias && c.alias.includes(command));
+                // 🤖 1. AI CHAT
+                case 'ai':
+                case 'chat': {
+                    if (!q) return reply("❌ කරුණාකර ප්‍රශ්නයක් ලියන්න!");
+                    await reply("⏳ AI පිළිතුර සකසමින් පවතී...");
+                    try {
+                        const response = await axios.get(`https://giftedtech.my.id{encodeURIComponent(q)}`);
+                        const aiReply = response.data.result || "පිළිතුරක් සෙවීමට නොහැකි විය.";
+                        await reply(`🤖 *DILSHAN-MD AI CHAT*\n\n${aiReply}`);
+                    } catch (e) {
+                        reply("❌ AI සම්බන්ධතාවය බිඳ වැටුණා.");
+                    }
+                    break;
+                }
 
-            if (cmdMatch) {
-                if (cmdMatch.react) await conn.sendMessage(from, { react: { text: cmdMatch.react, key: mek.key } });
-                await cmdMatch.function(conn, mek, m, {
-                    from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply
-                });
+                // ✨ 2. AI IMAGE GENERATOR
+                case 'img':
+                case 'gen': {
+                    if (!q) return reply("❌ පින්තූරය ගැන විස්තරයක් දෙන්න!");
+                    await reply("⏳ AI පින්තූරය සාදමින් පවතී...");
+                    try {
+                        const imageUrl = `https://pollinations.ai{encodeURIComponent(q)}?width=1024&height=1024&nologo=true`;
+                        await sock.sendMessage(from, { 
+                            image: { url: imageUrl }, 
+                            caption: `✨ *AI IMAGE GENERATOR*\n\n📝 *Prompt:* ${q}` 
+                        }, { quoted: mek });
+                    } catch (e) {
+                        reply("❌ පින්තූරය සෑදීමට නොහැකි විය.");
+                    }
+                    break;
+                }
+
+                // 🎙️ 3. TEXT TO SPEECH
+                case 'tts':
+                case 'say': {
+                    if (!q) return reply("❌ ශබ්ද නගා කියවිය යුතු දේ ලියන්න!");
+                    await reply("⏳ හඬ පටය සකසමින් පවතී...");
+                    try {
+                        const ttsUrl = `https://giftedtech.my.id{encodeURIComponent(q)}&lang=en`;
+                        await sock.sendMessage(from, { 
+                            audio: { url: ttsUrl }, 
+                            mimetype: 'audio/mp4', 
+                            ptt: true 
+                        }, { quoted: mek });
+                    } catch (e) {
+                        reply("❌ හඬ පටය සෑදීමට නොහැකි විය.");
+                    }
+                    break;
+                }
+
+                // 🎵 4. SONG DOWNLOADER
+                case 'song':
+                case 'play': {
+                    if (!q) return reply("❌ සින්දුවේ නම ලියන්න!");
+                    await reply("⏳ සින්දුව බාගත වෙමින් පවතී...");
+                    try {
+                        const res = await axios.get(`https://giftedtech.my.id{encodeURIComponent(q)}`);
+                        const audioLink = res.data.result.download_url;
+                        await sock.sendMessage(from, { 
+                            document: { url: audioLink }, 
+                            mimetype: 'audio/mpeg', 
+                            fileName: `${q}.mp3` 
+                        }, { quoted: mek });
+                    } catch (e) {
+                        reply("❌ සින්දුව සෙවීමට නොහැකි විය.");
+                    }
+                    break;
+                }
+
+                // 🎬 5. VIDEO DOWNLOADER
+                case 'video': {
+                    if (!q) return reply("❌ වීඩියෝ ලින්ක් එකක් හෝ නමක් දෙන්න!");
+                    await reply("⏳ වීඩියෝව බාගත වෙමින් පවතී...");
+                    try {
+                        const res = await axios.get(`https://giftedtech.my.id{encodeURIComponent(q)}`);
+                        const videoLink = res.data.result.download_url;
+                        await sock.sendMessage(from, { 
+                            video: { url: videoLink }, 
+                            caption: `🎬 *DILSHAN-MD DOWNLOADER*` 
+                        }, { quoted: mek });
+                    } catch (e) {
+                        reply("❌ වීඩියෝව බාගත කිරීමට නොහැකි විය.");
+                    }
+                    break;
+                }
+
+                // 🎭 6. STICKER MAKER
+                case 'sticker':
+                case 's': {
+                    const isMedia = (type === 'imageMessage' || type === 'videoMessage');
+                    const isQuotedImage = type === 'extendedTextMessage' && body.includes('imageMessage');
+                    
+                    if (isMedia || isQuotedImage) {
+                        await reply("⏳ ස්ටිකරය සාදමින් පවතී...");
+                        const { downloadContentFromMessage } = await import('@whiskeysockets/baileys');
+                        const msg = isQuotedImage ? mek.message.extendedTextMessage.contextInfo.quotedMessage.imageMessage : mek.message.imageMessage;
+                        const stream = await downloadContentFromMessage(msg, 'image');
+                        let buffer = Buffer.from([]);
+                        for await(const chunk of stream) { buffer = Buffer.concat([buffer, chunk]); }
+                        
+                        const Sticker = (await import('wa-sticker-formatter')).default;
+                        const sticker = new Sticker(buffer, {
+                            pack: 'DILSHAN-MD',
+                            author: 'Dilshan Ashinsa',
+                            type: 'full'
+                        });
+                        await sock.sendMessage(from, await sticker.toMessage(), { quoted: mek });
+                    } else {
+                        reply("❌ කරුණාකර පින්තූරයක් සමඟ .s කමාන්ඩ් එක යවන්න!");
+                    }
+                    break;
+                }
+
+                // ✍️ 7. FANCY FONTS
+                case 'font':
+                case 'fancy': {
+                    if (!q) return reply("❌ මෝස්තර කළ යුතු නම ලියන්න!");
+                    try {
+                        const res = await axios.get(`https://giftedtech.my.id{encodeURIComponent(q)}`);
+                        const fontList = res.data.result.map(f => f.result).join('\n\n');
+                        await reply(`✍ *FANCY FONTS FOR: ${q}*\n\n${fontList}`);
+                    } catch (e) {
+                        reply("❌ අකුරු මෝස්තර කිරීමට නොහැකි විය.");
+                    }
+                    break;
+                }
             }
-        } catch (e) {
-            console.error("Handler error:", e);
+        } catch (err) {
+            console.error(err);
         }
     });
 }
 
-app.listen(port, () => console.log(`Server running on port ${port}`));
-setTimeout(() => { connectToWA(); }, 2000);
+startBot();
